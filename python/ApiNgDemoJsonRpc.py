@@ -6,105 +6,74 @@ import datetime
 import sys
 
 
-"""
-make a call API-NG
-"""
-
-def callAping(jsonrpc_req):
+def call_api_ng(jsonrpc_req):
     try:
         req = urllib2.Request(url, jsonrpc_req, headers)
         response = urllib2.urlopen(req)
         jsonResponse = response.read()
         return jsonResponse
     except urllib2.URLError:
-        print 'Oops no service available at ' + str(url)
-        exit()
+        raise Exception('Oops no service available at %s' % url)
     except urllib2.HTTPError:
-        print 'Oops not a valid operation from the service ' + str(url)
-        exit()
+        raise Exception('Oops not a valid operation from the service %s' % url)
 
 
-"""
-calling getEventTypes operation
-"""
-
-def getEventTypes():
+def get_event_types():
     event_type_req = '{"jsonrpc": "2.0", "method": "SportsAPING/v1.0/listEventTypes", "params": {"filter":{ }}, "id": 1}'
     print 'Calling listEventTypes to get event Type ID'
-    eventTypesResponse = callAping(event_type_req)
-    eventTypeLoads = json.loads(eventTypesResponse)
-    """
-    print eventTypeLoads
-    """
-
-    try:
-        eventTypeResults = eventTypeLoads['result']
-        return eventTypeResults
-    except:
-        print 'Exception from API-NG' + str(eventTypeLoads['error'])
-        exit()
+    event_types_response = call_api_ng(event_type_req)
+    event_type_loads = json.loads(event_types_response)
+    print event_type_loads
+    return event_type_loads['result']
 
 
-"""
-Extraction eventypeId for eventTypeName from evetypeResults
-"""
+def get_event_type_id_for_event_type_name(event_types_result, requested_event_type_name):
+    if not event_types_result:
+        raise Exception("No results")
 
-def getEventTypeIDForEventTypeName(eventTypesResult, requestedEventTypeName):
-    if(eventTypesResult is not None):
-        for event in eventTypesResult:
-            eventTypeName = event['eventType']['name']
-            if( eventTypeName == requestedEventTypeName):
-                return  event['eventType']['id']
-    else:
-        print 'Oops there is an issue with the input'
-        exit()
+    for event in event_types_result:
+        event_type_name = event['eventType']['name']
+        if event_type_name == requested_event_type_name:
+            return  event['eventType']['id']
 
 
 """
 Calling marketCatalouge to get marketDetails
 """
 
-def getMarketCatalogueForNextGBWin(eventTypeID):
-    if (eventTypeID is not None):
-        print 'Calling listMarketCatalouge Operation to get MarketID and selectionId'
-        now = datetime.datetime.now().strftime('%Y-%m-%dT%H:%M:%SZ')
-        market_catalogue_req = '{"jsonrpc": "2.0", "method": "SportsAPING/v1.0/listMarketCatalogue", "params": {"filter":{"eventTypeIds":["' + eventTypeID + '"],"marketCountries":["GB"],"marketTypeCodes":["WIN"],'\
-                                                                                                                                                             '"marketStartTime":{"from":"' + now + '"}},"sort":"FIRST_TO_START","maxResults":"1","marketProjection":["RUNNER_METADATA"]}, "id": 1}'
-        """
-        print  market_catalogue_req
-        """
-        market_catalogue_response = callAping(market_catalogue_req)
-        """
-        print market_catalogue_response
-        """
-        market_catalouge_loads = json.loads(market_catalogue_response)
-        try:
-            market_catalouge_results = market_catalouge_loads['result']
-            return market_catalouge_results
-        except:
-            print  'Exception from API-NG' + str(market_catalouge_results['error'])
-            exit()
+def get_market_catalogue_for_next_gb_win(event_type_id):
+    if not event_type_id:
+        return
+
+    print 'Calling listMarketCatalouge Operation to get MarketID and selectionId'
+    now = datetime.datetime.now().strftime('%Y-%m-%dT%H:%M:%SZ')
+    market_catalogue_req = '{"jsonrpc": "2.0", "method": "SportsAPING/v1.0/listMarketCatalogue", "params": {"filter":{"eventTypeIds":["' + event_type_id + '"],"marketCountries":["GB"],"marketTypeCodes":["WIN"],'\
+                                                                                                                                                         '"marketStartTime":{"from":"' + now + '"}},"sort":"FIRST_TO_START","maxResults":"1","marketProjection":["RUNNER_METADATA"]}, "id": 1}'
+    market_catalogue_response = call_api_ng(market_catalogue_req)
+    market_catalogue_loads = json.loads(market_catalogue_response)
+    try:
+        market_catalogue_results = market_catalogue_loads['result']
+        return market_catalogue_results
+    except:
+        raise Exception('Exception from API-NG' + str(market_catalogue_results['error']))
+
+def get_market_id(market_catalogue_result):
+    for market in market_catalogue_result:
+        return market['marketId']
+    raise Exception("no marketId")
+
+def get_selection_id(market_catalogue_result):
+    for market in market_catalogue_result:
+        return market['runners'][0]['selectionId']
 
 
-def getMarketId(marketCatalogueResult):
-    if( marketCatalogueResult is not None):
-        for market in marketCatalogueResult:
-            return market['marketId']
-
-
-def getSelectionId(marketCatalogueResult):
-    if(marketCatalogueResult is not None):
-        for market in marketCatalogueResult:
-            return market['runners'][0]['selectionId']
-
-
-def getMarketBookBestOffers(marketId):
+def get_market_book_best_offers(marketId):
     print 'Calling listMarketBook to read prices for the Market with ID :' + marketId
     market_book_req = '{"jsonrpc": "2.0", "method": "SportsAPING/v1.0/listMarketBook", "params": {"marketIds":["' + marketId + '"],"priceProjection":{"priceData":["EX_BEST_OFFERS"]}}, "id": 1}'
     """
     print  market_book_req
     """
-    market_book_response = callAping(market_book_req)
+    market_book_response = call_api_ng(market_book_req)
     """
     print market_book_response
     """
@@ -117,7 +86,7 @@ def getMarketBookBestOffers(marketId):
         exit()
 
 
-def printPriceInfo(market_book_result):
+def print_price_info(market_book_result):
     if(market_book_result is not None):
         print 'Please find Best three available prices for the runners'
         for marketBook in market_book_result:
@@ -140,7 +109,7 @@ def placeFailingBet(marketId, selectionId):
         """
         print place_order_Req
         """
-        place_order_Response = callAping(place_order_Req)
+        place_order_Response = call_api_ng(place_order_Req)
         place_order_load = json.loads(place_order_Response)
         try:
             place_order_result = place_order_load['result']
@@ -159,7 +128,7 @@ def placeFailingBet(marketId, selectionId):
 url = "https://api.betfair.com/exchange/betting/json-rpc/v1"
 
 """
-headers = { 'X-Application' : 'xxxxxx', 'X-Authentication' : 'xxxxx' ,'content-type' : 'application/json' }
+headers = { 'X-Application' : 'coxsim', 'X-Authentication' : 'GO3cA7sDLExqPatk' ,'content-type' : 'application/json' }
 """
 
 args = len(sys.argv)
@@ -175,21 +144,17 @@ else:
 
 headers = {'X-Application': appKey, 'X-Authentication': sessionToken, 'content-type': 'application/json'}
 
-eventTypesResult = getEventTypes()
-horseRacingEventTypeID = getEventTypeIDForEventTypeName(eventTypesResult, 'Horse Racing')
+event_types_result = get_event_types()
+horse_racing_event_type_id = get_event_type_id_for_event_type_name(event_types_result, 'Horse Racing')
 
-print 'Eventype Id for Horse Racing is :' + str(horseRacingEventTypeID)
+print 'Eventype Id for Horse Racing is :' + str(horse_racing_event_type_id)
 
-marketCatalogueResult = getMarketCatalogueForNextGBWin(horseRacingEventTypeID)
-marketid = getMarketId(marketCatalogueResult)
-runnerId = getSelectionId(marketCatalogueResult)
-"""
-print marketid
-print runnerId
-"""
-market_book_result = getMarketBookBestOffers(marketid)
-printPriceInfo(market_book_result)
+marketCatalogueResult = get_market_catalogue_for_next_gb_win(horse_racing_event_type_id)
+market_id = get_market_id(marketCatalogueResult)
+runner_id = get_selection_id(marketCatalogueResult)
+market_book_result = get_market_book_best_offers(market_id)
+print_price_info(market_book_result)
 
-placeFailingBet(marketid, runnerId)
+placeFailingBet(market_id, runner_id)
 
 
